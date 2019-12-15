@@ -27,6 +27,8 @@ class Reader(object):
 
         self.epoch = 1
 
+        self.neg_ratio = cfg.NEG_RATIO
+
         self.pre_process()
 
     def read_image(self, path):
@@ -124,7 +126,7 @@ class Reader(object):
         neg_index = np.where(labels == 0)[0]
         neg_num = neg_index.shape[0]
 
-        neg_num = min(neg_num, pos_num*3)
+        neg_num = min(neg_num, pos_num*self.neg_ratio)
         neg_index = np.random.choice(neg_index, neg_num, replace=False)
 
         keep_index = np.hstack([pos_index, neg_index])

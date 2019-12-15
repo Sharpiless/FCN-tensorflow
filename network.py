@@ -160,7 +160,7 @@ class Net(object):
 
             f_shape = [ksize, ksize, num_classes, in_features]
 
-            weights = self.get_deconv_filter(f_shape)
+            weights = self.get_deconv_filter_norm(f_shape)
             deconv = tf.nn.conv2d_transpose(bottom, weights, output_shape,
                                             strides=strides, padding='SAME')
 
@@ -184,6 +184,12 @@ class Net(object):
                                        dtype=tf.float32)
         return tf.get_variable(name='up_filter', initializer=init,
                                shape=weights.shape)
+
+    def get_deconv_filter_norm(self, f_shape):
+
+        weights = tf.Variable(tf.truncated_normal(f_shape, mean=0., stddev=0.1))
+
+        return weights
 
     def train_net(self):
 
@@ -263,7 +269,7 @@ class Net(object):
 
                 image = self.reader.read_image(path)
                 image, _ = self.reader.resize_image(
-                    image, None, with_label=False)
+                    image, with_label=False)
                 image, _ = random_crop(image, None, with_label=False)
 
                 image = np.expand_dims(image, axis=0)

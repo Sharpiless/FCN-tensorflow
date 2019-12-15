@@ -5,6 +5,8 @@ DATA_PATH = '../VOC2012'
 
 EPOCHES = 500
 
+NEG_RATIO = 3
+
 LEARNING_RATE = 2e-4
 
 ImageSets_PATH = os.path.join(DATA_PATH, 'ImageSets')
