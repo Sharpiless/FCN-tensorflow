@@ -66,61 +66,61 @@ class Net(object):
 
         with tf.variable_scope('vgg'):
 
-            self.conv1_1 = self._conv_layer(inputs, 64, 'conv1_1')
-            self.conv1_2 = self._conv_layer(self.conv1_1, 64, 'conv1_2')
-            self.pool1 = self._max_pool(self.conv1_2, 'pool1')
+            conv1_1 = self._conv_layer(inputs, 64, 'conv1_1')
+            conv1_2 = self._conv_layer(conv1_1, 64, 'conv1_2')
+            pool1 = self._max_pool(conv1_2, 'pool1')
 
-            self.conv2_1 = self._conv_layer(self.pool1, 128, 'conv2_1')
-            self.conv2_2 = self._conv_layer(self.conv2_1, 128, 'conv2_2')
-            self.pool2 = self._max_pool(self.conv2_2, 'pool2')
+            conv2_1 = self._conv_layer(pool1, 128, 'conv2_1')
+            conv2_2 = self._conv_layer(conv2_1, 128, 'conv2_2')
+            pool2 = self._max_pool(conv2_2, 'pool2')
 
-            self.conv3_1 = self._conv_layer(self.pool2, 256, 'conv3_1')
-            self.conv3_2 = self._conv_layer(self.conv3_1, 256, 'conv3_2')
-            self.conv3_3 = self._conv_layer(self.conv3_2, 256, 'conv3_3')
-            self.pool3 = self._max_pool(self.conv3_3, 'pool3')
+            conv3_1 = self._conv_layer(pool2, 256, 'conv3_1')
+            conv3_2 = self._conv_layer(conv3_1, 256, 'conv3_2')
+            conv3_3 = self._conv_layer(conv3_2, 256, 'conv3_3')
+            pool3 = self._max_pool(conv3_3, 'pool3')
 
-            self.conv4_1 = self._conv_layer(self.pool3, 512, 'conv4_1')
-            self.conv4_2 = self._conv_layer(self.conv4_1, 512, 'conv4_2')
-            self.conv4_3 = self._conv_layer(self.conv4_2, 512, 'conv4_3')
-            self.pool4 = self._max_pool(self.conv4_3, 'pool4')
+            conv4_1 = self._conv_layer(pool3, 512, 'conv4_1')
+            conv4_2 = self._conv_layer(conv4_1, 512, 'conv4_2')
+            conv4_3 = self._conv_layer(conv4_2, 512, 'conv4_3')
+            pool4 = self._max_pool(conv4_3, 'pool4')
 
-            self.conv5_1 = self._conv_layer(self.pool4, 512, 'conv5_1')
-            self.conv5_2 = self._conv_layer(self.conv5_1, 512, 'conv5_2')
-            self.conv5_3 = self._conv_layer(self.conv5_2, 512, 'conv5_3')
-            self.pool5 = self._max_pool(self.conv5_3, 'pool5')
+            conv5_1 = self._conv_layer(pool4, 512, 'conv5_1')
+            conv5_2 = self._conv_layer(conv5_1, 512, 'conv5_2')
+            conv5_3 = self._conv_layer(conv5_2, 512, 'conv5_3')
+            pool5 = self._max_pool(conv5_3, 'pool5')
 
-        self.fc6 = self._conv_layer(self.pool5, 4096, k_size=1, name='fc6')
-
-        if train:
-            self.fc6 = tf.nn.dropout(self.fc6, self.keep_rate)
-
-        self.fc7 = self._conv_layer(self.fc6, 4096, k_size=1, name='fc7')
+        fc6 = self._conv_layer(pool5, 4096, k_size=1, name='fc6')
 
         if train:
-            self.fc7 = tf.nn.dropout(self.fc7, self.keep_rate)
+            fc6 = tf.nn.dropout(fc6, self.keep_rate)
 
-        self.score_fr = self._conv_layer(
-            self.fc7, 1000, k_size=1, name='score_fr')
+        fc7 = self._conv_layer(fc6, 4096, k_size=1, name='fc7')
 
-        self.upscore2 = self._upscore_layer(self.score_fr,
-                                            shape=tf.shape(self.pool4),
-                                            num_classes=num_classes,
-                                            name='upscore2',
-                                            ksize=4, stride=2)
+        if train:
+            fc7 = tf.nn.dropout(fc7, self.keep_rate)
 
-        self.score_pool4 = self._conv_layer(
-            self.pool4, num_classes, k_size=1, name='score_pool4')
+        fc8 = self._conv_layer(
+            fc7, 1000, k_size=1, name='fc8')
 
-        self.fuse_pool4 = tf.add(self.upscore2, self.score_pool4)
+        upscore1 = self._upscore_layer(fc8,
+                                       shape=tf.shape(pool4),
+                                       num_classes=num_classes,
+                                       name='upscore1',
+                                       ksize=4, stride=2)
+
+        score_pool4 = self._conv_layer(
+            pool4, num_classes, k_size=1, name='score_pool4')
+
+        fuse_pool4 = tf.add(upscore1, score_pool4)
         # self.fuse_pool4 = self.score_pool4
 
-        self.upscore32 = self._upscore_layer(self.fuse_pool4,
-                                             shape=tf.shape(inputs),
-                                             num_classes=num_classes,
-                                             name='upscore32',
-                                             ksize=32, stride=16)
+        upscore2 = self._upscore_layer(fuse_pool4,
+                                       shape=tf.shape(inputs),
+                                       num_classes=num_classes,
+                                       name='upscore2',
+                                       ksize=32, stride=16)
 
-        return tf.nn.softmax(self.upscore32, axis=-1)
+        return tf.nn.softmax(upscore2, axis=-1)
 
     def _max_pool(self, bottom, name):
 
