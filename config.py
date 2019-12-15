@@ -23,6 +23,8 @@ MIN_CROP_RATIO = 0.6
 
 MAX_CROP_RATIO = 1.0
 
+MIN_CROP_POS_RATIO = 0.5
+
 PIXEL_MEANS = np.array([[[103.939, 116.779, 123.68]]])
 
 MODEL_PATH = './model/'

@@ -256,6 +256,10 @@ if __name__ == "__main__":
 
     reader = Reader(is_training=True)
 
+    for i in range(1000):
+        reader.generate(batch_size=16)
+        print('num: {}'.format(i), end='\r')
+
     for _ in range(10):
 
         value = reader.generate(1)
