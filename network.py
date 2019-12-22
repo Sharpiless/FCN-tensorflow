@@ -6,6 +6,7 @@ from math import ceil
 import os
 from random_crop import random_crop
 import matplotlib.pyplot as plt
+from tensorflow.contrib.layers import xavier_initializer
 
 slim = tf.contrib.slim
 
@@ -38,23 +39,16 @@ class Net(object):
         self.y = tf.placeholder(
             tf.int32, [None, self.target_size, self.target_size])
 
-        self.loss_weght = tf.placeholder(
-            tf.float32, [None, self.target_size, self.target_size])
-
         self.y_hat = self.network(self.x)
 
-        self.loss = self.sample_loss(self.y, self.y_hat, self.loss_weght)
+        self.loss = self.sample_loss(self.y, self.y_hat)
 
         self.saver = tf.train.Saver()
 
-    def sample_loss(self, labels, logits, loss_weight):
+    def sample_loss(self, labels, logits):
 
         loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=labels, logits=logits
-        )
-
-        loss = tf.losses.compute_weighted_loss(
-            losses=loss, weights=loss_weight
         )
 
         return tf.reduce_mean(loss)
@@ -102,25 +96,54 @@ class Net(object):
         fc8 = self._conv_layer(
             fc7, 1000, k_size=1, name='fc8')
 
-        upscore1 = self._upscore_layer(fc8,
-                                       shape=tf.shape(pool4),
-                                       num_classes=num_classes,
-                                       name='upscore1',
-                                       ksize=4, stride=2)
-
+        # up pool 1
+        unpool1 = self._unpool_layer(fc8,
+                                     shape=tf.shape(pool4),
+                                     num_classes=num_classes,
+                                     name='unpool1',
+                                     ksize=4, stride=2)
         score_pool4 = self._conv_layer(
             pool4, num_classes, k_size=1, name='score_pool4')
+        fuse_pool4 = tf.add(unpool1, score_pool4)
 
-        fuse_pool4 = tf.add(upscore1, score_pool4)
-        # self.fuse_pool4 = self.score_pool4
+        # up pool 2
+        unpool2 = self._unpool_layer(fuse_pool4,
+                                     shape=tf.shape(pool3),
+                                     num_classes=num_classes,
+                                     name='unpool2',
+                                     ksize=4, stride=2)
+        score_pool3 = self._conv_layer(
+            pool3, num_classes, k_size=1, name='score_pool3')
+        fuse_pool3 = tf.add(unpool2, score_pool3)
 
-        upscore2 = self._upscore_layer(fuse_pool4,
-                                       shape=tf.shape(inputs),
-                                       num_classes=num_classes,
-                                       name='upscore2',
-                                       ksize=32, stride=16)
+        # up pool 3
+        unpool3 = self._unpool_layer(fuse_pool3,
+                                     shape=tf.shape(pool2),
+                                     num_classes=num_classes,
+                                     name='unpool3',
+                                     ksize=4, stride=2)
+        score_pool2 = self._conv_layer(
+            pool2, num_classes, k_size=1, name='score_pool2')
+        fuse_pool2 = tf.add(unpool3, score_pool2)
 
-        return tf.nn.softmax(upscore2, axis=-1)
+        # up pool 4
+        unpool4 = self._unpool_layer(fuse_pool2,
+                                     shape=tf.shape(pool1),
+                                     num_classes=num_classes,
+                                     name='unpool4',
+                                     ksize=4, stride=2)
+        score_pool1 = self._conv_layer(
+            pool1, num_classes, k_size=1, name='score_pool1')
+        fuse_pool2 = tf.add(unpool4, score_pool1)
+
+        # up pool 5
+        logits = self._unpool_layer(fuse_pool2,
+                                    shape=tf.shape(inputs),
+                                    num_classes=num_classes,
+                                    name='unpool5',
+                                    ksize=4, stride=2)
+
+        return tf.nn.softmax(logits, axis=-1)
 
     def _max_pool(self, bottom, name):
 
@@ -135,9 +158,9 @@ class Net(object):
 
         return conv
 
-    def _upscore_layer(self, bottom, shape,
-                       num_classes, name,
-                       ksize=4, stride=2):
+    def _unpool_layer(self, bottom, shape,
+                      num_classes, name,
+                      ksize=4, stride=2):
 
         strides = [1, stride, stride, 1]
 
@@ -145,61 +168,29 @@ class Net(object):
 
             in_features = bottom.get_shape()[3].value
 
-            if shape is None:
-                # Compute shape out of Bottom
-                in_shape = tf.shape(bottom)
-
-                h = ((in_shape[1] - 1) * stride) + 1
-                w = ((in_shape[2] - 1) * stride) + 1
-                new_shape = [in_shape[0], h, w, num_classes]
-
-            else:
-                new_shape = [shape[0], shape[1], shape[2], num_classes]
+            new_shape = [shape[0], shape[1], shape[2], num_classes]
 
             output_shape = tf.stack(new_shape)
 
             f_shape = [ksize, ksize, num_classes, in_features]
 
-            weights = self.get_deconv_filter_norm(f_shape)
+            weights = tf.get_variable(
+                'W', f_shape, tf.float32, xavier_initializer())
+
             deconv = tf.nn.conv2d_transpose(bottom, weights, output_shape,
                                             strides=strides, padding='SAME')
 
         return deconv
-
-    def get_deconv_filter(self, f_shape):
-        width = f_shape[0]
-        height = f_shape[1]
-        f = ceil(width/2.0)
-        c = (2 * f - 1 - f % 2) / (2.0 * f)
-        bilinear = np.zeros([f_shape[0], f_shape[1]])
-        for x in range(width):
-            for y in range(height):
-                value = (1 - abs(x / f - c)) * (1 - abs(y / f - c))
-                bilinear[x, y] = value
-        weights = np.zeros(f_shape)
-        for i in range(f_shape[2]):
-            weights[:, :, i, i] = bilinear
-
-        init = tf.constant_initializer(value=weights,
-                                       dtype=tf.float32)
-        return tf.get_variable(name='up_filter', initializer=init,
-                               shape=weights.shape)
-
-    def get_deconv_filter_norm(self, f_shape):
-
-        weights = tf.Variable(tf.truncated_normal(f_shape, mean=0., stddev=0.1))
-
-        return weights
 
     def train_net(self):
 
         if not os.path.exists(self.model_path):
             os.makedirs(self.model_path)
 
-        self.optimizer = tf.compat.v1.train.MomentumOptimizer(
-            learning_rate=self.learning_rate, momentum=0.9)
+        # self.optimizer = tf.compat.v1.train.MomentumOptimizer(
+        #     learning_rate=self.learning_rate, momentum=0.9)
 
-        # self.optimizer = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
+        self.optimizer = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
 
         self.train_step = self.optimizer.minimize(self.loss)
 
@@ -222,13 +213,11 @@ class Net(object):
 
                     images = value['images']
                     labels = value['labels']
-                    weights = value['weights']
 
                     feed_dict = {self.x: images,
-                                 self.y: labels,
-                                 self.loss_weght: weights}
+                                 self.y: labels}
 
-                    _, loss = sess.run([self.train_step, self.loss], feed_dict)
+                    _, loss, pred = sess.run([self.train_step, self.loss, self.y_hat], feed_dict)
 
                     loss_list.append(loss)
 
@@ -254,6 +243,8 @@ class Net(object):
 
         self.is_training = False
 
+        test = []
+
         with tf.Session() as sess:
 
             sess.run(tf.compat.v1.global_variables_initializer())
@@ -269,24 +260,27 @@ class Net(object):
 
                 image = self.reader.read_image(path)
                 image, _ = self.reader.resize_image(
-                    image, with_label=False)
-                image, _ = random_crop(image, None, with_label=False)
+                    image, label_image=None, with_label=False)
+                image = random_crop(image, None, with_label=False)
 
                 image = np.expand_dims(image, axis=0)
 
                 label_image = sess.run(self.y_hat, feed_dict={
                                        self.x: image-self.reader.pixel_means})
-                label_image = np.squeeze(image)
+                label_image = np.squeeze(label_image)
 
                 label_image = np.argmax(label_image, axis=-1)
                 label_image = self.reader.decode_label(label_image)
 
-                image = np.squeeze(image).astype(np.int)
-
-                result = np.vstack([image, label_image])
+                # result = np.vstack([image, label_image])
+                result = label_image
 
                 plt.imshow(result)
                 plt.show()
+
+                test.append(result)
+
+        return test
 
 
 if __name__ == "__main__":
@@ -297,4 +291,7 @@ if __name__ == "__main__":
 
     test_path = ['./0.jpg', './1.jpg']
 
-    # net.test(test_path)
+    test = net.test(test_path)
+
+    plt.imshow(np.vstack(test))
+    plt.show()

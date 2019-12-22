@@ -31,7 +31,7 @@ def random_crop(image, label_image=None, with_label=True, size=cfg.TARGET_SIZE):
             i += 1
 
             if i%5 == 0:
-                min_ratio /= 8
+                min_ratio /= 1.2
 
         image = image[y:y+size, x:x+size, :]
         label_image = label_image[y:y+size, x:x+size, :]
@@ -51,3 +51,12 @@ def random_crop(image, label_image=None, with_label=True, size=cfg.TARGET_SIZE):
         image = image[y:y+size, x:x+size, :]
 
         return image
+
+def normalize(image):
+
+    image = image.astype(np.float)
+
+    min_value = 0
+    max_value = 255
+
+    return image/255

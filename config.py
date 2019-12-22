@@ -1,13 +1,19 @@
 import numpy as np
 import os
 
+LAYERS_SHAPE = [(14, 14),
+                (28, 28),
+                (56, 56)]
+
 DATA_PATH = '../VOC2012'
 
 EPOCHES = 500
 
-NEG_RATIO = 3
+TRAIN_ABLE = True
 
-LEARNING_RATE = 2e-4
+LOSS_WEIGHTS = (1.0, 1.0, 0.5, 0.4)
+
+LEARNING_RATE = 2e-5
 
 ImageSets_PATH = os.path.join(DATA_PATH, 'ImageSets')
 
@@ -17,7 +23,7 @@ KEEP_RATE = 0.8
 
 BATCH_SIZE = 4
 
-BATCHES = 64
+BATCHES = 256
 
 MIN_CROP_RATIO = 0.6
 
@@ -72,4 +78,3 @@ LAYERS = (
     'relu5_3', 'conv5_4', 'relu5_4'
 
 )
-

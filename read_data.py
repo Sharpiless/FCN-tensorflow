@@ -19,6 +19,8 @@ class Reader(object):
 
         self.CLASSES = cfg.CLASSES
 
+        self.layers = cfg.LAYERS_SHAPE
+
         self.COLOR_MAP = cfg.COLOR_MAP
 
         self.pixel_means = cfg.PIXEL_MEANS
@@ -26,8 +28,6 @@ class Reader(object):
         self.cursor = 0
 
         self.epoch = 1
-
-        self.neg_ratio = cfg.NEG_RATIO
 
         self.pre_process()
 
@@ -93,6 +93,19 @@ class Reader(object):
 
         return labels
 
+    def standardize(self, image):
+
+        mean = np.mean(image)
+        var = np.mean(np.square(image-mean))
+
+        image = (image - mean)/np.sqrt(var)
+
+        return image
+
+    def normalize(self, image):
+
+        return image - cfg.PIXEL_MEANS
+
     def resize_image(self, image, label_image, with_label=True):
 
         image_shape = image.shape
@@ -109,31 +122,9 @@ class Reader(object):
         if with_label:
 
             label_image = cv2.resize(
-                label_image, dsize=(0, 0), fx=scale, fy=scale)
+                label_image, dsize=(0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
 
         return image, label_image
-
-    def sample_weight(self, labels):
-
-        shape = labels.shape
-        labels = labels.reshape(-1)
-
-        weight = np.zeros(shape=labels.shape)
-
-        pos_index = np.where(labels != 0)[0]
-        pos_num = pos_index.shape[0]
-
-        neg_index = np.where(labels == 0)[0]
-        neg_num = neg_index.shape[0]
-
-        neg_num = min(neg_num, pos_num*self.neg_ratio)
-        neg_index = np.random.choice(neg_index, neg_num, replace=False)
-
-        keep_index = np.hstack([pos_index, neg_index])
-
-        weight[keep_index] = 1.
-
-        return np.squeeze(np.reshape(weight, shape))
 
     def pre_process(self):
 
@@ -143,6 +134,20 @@ class Reader(object):
             np.random.shuffle(true_labels)
 
         self.true_labels = true_labels
+
+    def get_layers_label(self, label_image):
+
+        results = []
+
+        for layer in self.layers:
+            tmp = cv2.resize(label_image, layer,
+                             interpolation=cv2.INTER_NEAREST)
+            results.append(tmp)
+        
+        results.append(label_image)
+
+        return results
+        
 
     def generate(self, batch_size):
 
@@ -170,18 +175,22 @@ class Reader(object):
                 self.epoch += 1
 
             label = self.fast_encode_label(label_image)
-            weight = self.sample_weight(label)
-            image -= self.pixel_means
+            label = self.get_layers_label(label)
+            image = self.standardize(image)
 
             images.append(image)
             labels.append(label)
-            weights.append(weight)
 
         images = np.stack(images)
-        labels = np.stack(labels)
-        weights = np.stack(weights)
+        # labels = np.stack(labels)
+        result_labels = []
+        for i in range(4):
+            tmp = []
+            for j in range(batch_size):
+                tmp.append(labels[j][i])
+            result_labels.append(np.stack(tmp))
 
-        value = {'images': images, 'labels': labels, 'weights': weights}
+        value = {'images': images, 'labels': result_labels}
 
         return value
 
@@ -210,6 +219,7 @@ class Reader(object):
 
         label = np.zeros(shape=(h*w, 1))
 
+        label_image = label_image.astype(np.int)
         label_image = label_image.reshape((-1, 3))
 
         r_image = label_image[:, 0]
@@ -256,19 +266,15 @@ if __name__ == "__main__":
 
     reader = Reader(is_training=True)
 
-    for i in range(1000):
-        reader.generate(batch_size=16)
-        print('num: {}'.format(i), end='\r')
-
     for _ in range(10):
 
-        value = reader.generate(1)
+        value = reader.generate(4)
 
         image = np.squeeze(value['images'])
         label = np.squeeze(value['labels'])
 
         image = (image+reader.pixel_means).astype(np.int)
-        label = reader.decode_label(label)
+        # label = reader.decode_label(label)
 
-        plt.imshow(np.vstack([image, label]))
+        plt.imshow(label)
         plt.show()
