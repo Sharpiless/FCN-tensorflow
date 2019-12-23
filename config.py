@@ -11,9 +11,11 @@ EPOCHES = 500
 
 TRAIN_ABLE = True
 
+NEG_WEIGHTS = 0.5
+
 LOSS_WEIGHTS = (1.0, 1.0, 0.5, 0.4)
 
-LEARNING_RATE = 2e-5
+LEARNING_RATE = 2e-4
 
 ImageSets_PATH = os.path.join(DATA_PATH, 'ImageSets')
 

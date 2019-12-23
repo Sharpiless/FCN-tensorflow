@@ -37,20 +37,7 @@ class Net(object):
         self.x = tf.placeholder(
             tf.float32, [None, self.target_size, self.target_size, 3])
 
-        self.y0 = tf.placeholder(
-            tf.int32, [None, 14, 14])
-        self.y1 = tf.placeholder(
-            tf.int32, [None, 28, 28])
-        self.y2 = tf.placeholder(
-            tf.int32, [None, 56, 56])
-        self.y3 = tf.placeholder(
-            tf.int32, [None, self.target_size, self.target_size])
-
-        self.y = [self.y0, self.y1, self.y2, self.y3]
-
         self.y_hat = self.network(self.x)
-
-        self.loss = self.sample_loss(self.y, self.y_hat)
 
         with open('var.txt', 'r') as f:
             variables = tf.contrib.framework.get_variables_to_restore()
@@ -59,19 +46,6 @@ class Net(object):
                 v for v in variables if v.name in var_s]
 
         self.saver = tf.train.Saver(variables_to_restore)
-
-    def sample_loss(self, labels, logits):
-
-        losses = []
-
-        for i in range(4):
-
-            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                labels=labels[i], logits=logits[i]
-            )
-            losses.append(tf.reduce_mean(loss))
-
-        return tf.reduce_mean(losses)
 
     def network(self, inputs, scope='ssd_512_vgg'):
 
@@ -109,7 +83,8 @@ class Net(object):
                               512, [3, 3], scope='conv5', trainable=False)
 
             # Block 6
-            net = slim.conv2d(net, 1024, [3, 3], 2, scope='conv6', trainable=False)
+            net = slim.conv2d(net, 1024, [3, 3],
+                              2, scope='conv6', trainable=False)
 
             # Block 7
             net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
@@ -237,16 +212,6 @@ class Net(object):
 
     def train_net(self):
 
-        if not os.path.exists(self.model_path):
-            os.makedirs(self.model_path)
-
-        self.optimizer = tf.compat.v1.train.MomentumOptimizer(
-            learning_rate=self.learning_rate, momentum=0.9)
-
-        # self.optimizer = tf.compat.v1.train.AdamOptimizer(self.learning_rate)
-
-        self.train_step = self.optimizer.minimize(self.loss)
-
         with tf.Session() as sess:
 
             sess.run(tf.compat.v1.global_variables_initializer())
@@ -257,49 +222,15 @@ class Net(object):
                 # 如果保存过模型，则在保存的模型的基础上继续训练
                 self.saver.restore(sess, ckpt.model_checkpoint_path)
                 print('Model Reload Successfully!')
-            
+
             self.saver = tf.train.Saver()
 
-            for i in range(cfg.EPOCHES):
-                loss_list = []
-                for batch in range(cfg.BATCHES):
-
-                    value = self.reader.generate(self.batch_size)
-
-                    images = value['images']
-                    labels = value['labels']
-
-                    feed_dict = {self.x: images,
-                                 self.y0: labels[0],
-                                 self.y1: labels[1],
-                                 self.y2: labels[2],
-                                 self.y3: labels[3]}
-
-                    _, loss, pred = sess.run(
-                        [self.train_step, self.loss, self.y_hat], feed_dict)
-
-                    loss_list.append(loss)
-
-                    # print('batch:{} loss:{}'.format(batch, loss), end='\r')
-
-                loss_values = np.array(loss_list)  # (64, 3)
-
-                loss_values = np.mean(loss_values)
-
-                with open('./result.txt', 'a') as f:
-                    f.write(str(loss_values)+'\n')
-
-                self.saver.save(sess, os.path.join(
-                    cfg.MODEL_PATH, 'model.ckpt'))
-
-                print('epoch:{} loss:{}'.format(
-                    self.reader.epoch, loss_values))
+            self.saver.save(sess, os.path.join(
+                cfg.MODEL_PATH, 'model.ckpt'))
 
 
 if __name__ == "__main__":
 
     net = Net(is_training=True)
-
-    net.run_test()
 
     net.train_net()

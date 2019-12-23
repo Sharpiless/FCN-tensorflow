@@ -36,6 +36,8 @@ class Net(object):
 
         self.keep_rate = cfg.KEEP_RATE
 
+        self.neg_weights = cfg.NEG_WEIGHTS
+
         self.reader = Reader(is_training=is_training)
 
         self.x = tf.placeholder(
@@ -64,12 +66,18 @@ class Net(object):
 
         for i in range(4):
 
-            pos_mask = labels[i] > 0
-            pos_mask = tf.cast(pos_mask, tf.float32)
+            pos = labels[i] > 0
+            pos_mask = tf.cast(pos, tf.float32)
+            
+            neg_mask = tf.ones(shape=tf.shape(pos_mask))
+            neg_mask = tf.multiply(neg_mask, self.neg_weights)
 
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 labels=labels[i], logits=logits[i]
             )
+
+            loss_weights = tf.where(pos, pos_mask, neg_mask)
+
             loss = tf.losses.compute_weighted_loss(loss, pos_mask)
             losses.append(loss)
 
