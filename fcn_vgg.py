@@ -44,11 +44,11 @@ class Net(object):
             tf.float32, [None, self.target_size, self.target_size, 3])
 
         self.y0 = tf.placeholder(
-            tf.int32, [None, 14, 14])
+            tf.int32, [None, 32, 32])
         self.y1 = tf.placeholder(
-            tf.int32, [None, 28, 28])
+            tf.int32, [None, 64, 64])
         self.y2 = tf.placeholder(
-            tf.int32, [None, 56, 56])
+            tf.int32, [None, 128, 128])
         self.y3 = tf.placeholder(
             tf.int32, [None, self.target_size, self.target_size])
 
@@ -78,7 +78,7 @@ class Net(object):
 
             loss_weights = tf.where(pos, pos_mask, neg_mask)
 
-            loss = tf.losses.compute_weighted_loss(loss, pos_mask)
+            loss = tf.losses.compute_weighted_loss(loss, loss_weights)
 
             '''loss = tf.reduce_mean(
                 tf.nn.sparse_softmax_cross_entropy_with_logits(
@@ -252,8 +252,13 @@ class Net(object):
 
                 tmp = np.hstack((a1, a2))
 
+                plt.imshow(tmp)
+                plt.show()
+
                 raw = np.hstack([raw, raw])
+                
                 result = self.reader.decode_label(tmp, raw)
+
                 plt.imshow(result)
                 plt.show()
 
@@ -320,6 +325,6 @@ if __name__ == "__main__":
 
     net = Net(is_training=True)
 
-    net.run_test(5)
+    net.run_test(30)
 
-    # net.train_net()
+    net.train_net()
