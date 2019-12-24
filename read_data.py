@@ -143,11 +143,10 @@ class Reader(object):
             tmp = cv2.resize(label_image, layer,
                              interpolation=cv2.INTER_NEAREST)
             results.append(tmp)
-        
+
         results.append(label_image)
 
         return results
-        
 
     def generate(self, batch_size):
 
@@ -176,6 +175,7 @@ class Reader(object):
 
             label = self.fast_encode_label(label_image)
             label = self.get_layers_label(label)
+            raw = image
             image = self.standardize(image)
 
             images.append(image)
@@ -192,7 +192,7 @@ class Reader(object):
 
         value = {'images': images, 'labels': result_labels}
 
-        return value
+        return value, raw.astype(np.int)
 
     def encode_label(self, label_image):
 
@@ -241,7 +241,7 @@ class Reader(object):
 
         return label.reshape((h, w))
 
-    def decode_label(self, label):
+    def decode_label(self, label, raw):
 
         h, w = label.shape[:2]
 
@@ -257,7 +257,9 @@ class Reader(object):
 
             label_image[cls_index] = self.COLOR_MAP[i]
 
-        return label_image.reshape((h, w, 3))
+        result = label_image.reshape((h, w, 3))+raw
+
+        return result.astype(np.int)
 
 
 if __name__ == "__main__":
@@ -268,13 +270,13 @@ if __name__ == "__main__":
 
     for _ in range(10):
 
-        value = reader.generate(4)
+        value, raw = reader.generate(1)
 
         image = np.squeeze(value['images'])
-        label = np.squeeze(value['labels'])
+        label = value['labels']
+        label_image = np.squeeze(label[-1]).astype(np.float)
 
-        image = (image+reader.pixel_means).astype(np.int)
-        # label = reader.decode_label(label)
+        result = reader.decode_label(label_image, raw)
 
-        plt.imshow(label)
+        plt.imshow(result)
         plt.show()

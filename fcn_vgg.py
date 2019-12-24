@@ -68,7 +68,7 @@ class Net(object):
 
             pos = labels[i] > 0
             pos_mask = tf.cast(pos, tf.float32)
-            
+
             neg_mask = tf.ones(shape=tf.shape(pos_mask))
             neg_mask = tf.multiply(neg_mask, self.neg_weights)
 
@@ -79,6 +79,12 @@ class Net(object):
             loss_weights = tf.where(pos, pos_mask, neg_mask)
 
             loss = tf.losses.compute_weighted_loss(loss, pos_mask)
+
+            '''loss = tf.reduce_mean(
+                tf.nn.sparse_softmax_cross_entropy_with_logits(
+                    labels=labels[i], logits=logits[i])
+            )'''
+
             losses.append(loss)
 
         # losses = tf.reduce_mean(losses)
@@ -190,8 +196,6 @@ class Net(object):
 
             f_shape = [ksize, ksize, num_classes, in_features]
 
-            '''weights = tf.get_variable(
-                'W', f_shape, tf.float32, xavier_initializer())'''
             weights = self.get_deconv_filter(f_shape)
 
             deconv = tf.nn.conv2d_transpose(bottom, weights, output_shape,
@@ -219,7 +223,7 @@ class Net(object):
         return tf.get_variable(name="up_filter", initializer=init,
                                shape=weights.shape)
 
-    def run_test(self):
+    def run_test(self, num=4):
 
         with tf.Session() as sess:
 
@@ -232,23 +236,25 @@ class Net(object):
                 self.saver.restore(sess, ckpt.model_checkpoint_path)
                 print('Model Reload Successfully!')
 
-            value = self.reader.generate(1)
+            for _ in range(num):
 
-            images = value['images']
-            labels = value['labels']
+                value, raw = self.reader.generate(1)
 
-            feed_dict = {self.x: images}
+                images = value['images']
+                labels = value['labels']
 
-            v = sess.run(self.y_hat, feed_dict)
+                feed_dict = {self.x: images}
 
-            for i in range(4):
+                v = sess.run(self.y_hat, feed_dict)
 
-                a1 = np.squeeze(np.argmax(v[i], axis=-1))
-                a2 = np.squeeze(labels[i])
+                a1 = np.squeeze(np.argmax(v[-1], axis=-1))
+                a2 = np.squeeze(labels[-1])
 
                 tmp = np.hstack((a1, a2))
 
-                plt.imshow(tmp)
+                raw = np.hstack([raw, raw])
+                result = self.reader.decode_label(tmp, raw)
+                plt.imshow(result)
                 plt.show()
 
     def train_net(self):
@@ -278,7 +284,7 @@ class Net(object):
                 loss_list = []
                 for batch in range(cfg.BATCHES):
 
-                    value = self.reader.generate(self.batch_size)
+                    value, _ = self.reader.generate(self.batch_size)
 
                     images = value['images']
                     labels = value['labels']
@@ -296,7 +302,7 @@ class Net(object):
 
                     # print('batch:{} loss:{}'.format(batch, loss), end='\r')
 
-                loss_values = np.array(loss_list)  # (64, 3)
+                loss_values = np.array(loss_list)
 
                 loss_values = np.mean(loss_values)
 
@@ -314,7 +320,6 @@ if __name__ == "__main__":
 
     net = Net(is_training=True)
 
-    for _ in range(4):
-        net.run_test()
+    net.run_test(5)
 
-    net.train_net()
+    # net.train_net()
