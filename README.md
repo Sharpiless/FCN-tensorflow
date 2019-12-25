@@ -1,9 +1,3 @@
-﻿# FCN语义分割算法详细介绍及源码详解（二）源码详解
-
-![在这里插入图片描述](https://img-blog.csdnimg.cn/20191223194033406.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3dlaXhpbl80NDkzNjg4OQ==,size_16,color_FFFFFF,t_70)
-源码在我的Github更新啦，记得随手点一个⭐呀~
-
-传送门：https://github.com/Sharpiless/FCN-tensorflow
 
 ## 主要分几个程序：
 #### 1.config.py：保存了我们这个项目的大部分参数；
@@ -12,12 +6,7 @@
 #### 4.fcn_vgg.py：定义了FCN的网络结构并训练模型；
 #### 5.fcn_vgg_restore.py：用于加载预训练模型；
 
-## ———————分割线————————
-照例先扯淡吧，，，下一期就讲一下rpn网络用于人脸检测，效果如图——
 
-（好吧没图，，，其实这个我还没开始写，写完了尽快更新😥。
-
-## ———————分割线————————
 ### 1.config.py
 config.py保存了大部分参数，先上代码：
 
