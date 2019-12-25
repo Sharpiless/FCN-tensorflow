@@ -42,8 +42,6 @@ class Net(object):
 
         self.wd = 5e-4
 
-        self.lr = tf.placeholder(tf.float32, name='lr')
-
         self.x = tf.placeholder(
             tf.float32, [None, self.target_size, self.target_size, 3])
 
@@ -301,13 +299,8 @@ class Net(object):
                 print('Model Reload Successfully!')
 
             for i in range(cfg.EPOCHES):
-
                 loss_list = []
                 regular_loss_list = []
-
-                lr = tf.train.exponential_decay(
-                    learning_rate=self.learning_rate, global_step=i, decay_steps=20, decay_rate=0.9, staircase=False)
-
                 for batch in range(cfg.BATCHES):
 
                     value, _ = self.reader.generate(self.batch_size)
@@ -315,15 +308,11 @@ class Net(object):
                     images = value['images']
                     labels = value['labels']
 
-                    lr = sess.run(lr)
-
-                    feed_dict = {
-                        self.lr: lr,
-                        self.x: images,
-                        self.y0: labels[0],
-                        self.y1: labels[1],
-                        self.y2: labels[2],
-                        self.y3: labels[3]}
+                    feed_dict = {self.x: images,
+                                 self.y0: labels[0],
+                                 self.y1: labels[1],
+                                 self.y2: labels[2],
+                                 self.y3: labels[3]}
 
                     _, loss, regular_loss = sess.run(
                         [self.train_step, self.loss, self.regular_loss], feed_dict)
