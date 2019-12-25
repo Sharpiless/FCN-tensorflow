@@ -40,6 +40,10 @@ class Net(object):
 
         self.reader = Reader(is_training=is_training)
 
+        self.wd = 5e-4
+
+        self.lr = tf.placeholder(tf.float32, name='lr')
+
         self.x = tf.placeholder(
             tf.float32, [None, self.target_size, self.target_size, 3])
 
@@ -56,7 +60,7 @@ class Net(object):
 
         self.y_hat = self.network(self.x)
 
-        self.loss = self.sample_loss(self.y, self.y_hat)
+        self.loss, self.regular_loss = self.sample_loss(self.y, self.y_hat)
 
         self.saver = tf.train.Saver()
 
@@ -80,11 +84,6 @@ class Net(object):
 
             loss = tf.losses.compute_weighted_loss(loss, loss_weights)
 
-            '''loss = tf.reduce_mean(
-                tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    labels=labels[i], logits=logits[i])
-            )'''
-
             losses.append(loss)
 
         # losses = tf.reduce_mean(losses)
@@ -93,7 +92,21 @@ class Net(object):
             losses, self.loss_weights
         )
 
-        return losses
+        regularization_losses = tf.get_collection(
+            tf.GraphKeys.REGULARIZATION_LOSSES)
+
+        regular_loss = tf.add_n(regularization_losses)
+
+        return losses, regular_loss
+
+    def add_weight_decay(self, var):
+
+        weight_decay = tf.multiply(
+            tf.nn.l2_loss(var), self.wd, name='weight_loss')
+
+        tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,
+                             weight_decay)
+        return var
 
     def network(self, inputs, scope='ssd_512_vgg'):
 
@@ -198,6 +211,8 @@ class Net(object):
 
             weights = self.get_deconv_filter(f_shape)
 
+            self.add_weight_decay(weights)
+
             deconv = tf.nn.conv2d_transpose(bottom, weights, output_shape,
                                             strides=strides, padding='SAME')
 
@@ -256,7 +271,7 @@ class Net(object):
                 plt.show()
 
                 raw = np.hstack([raw, raw])
-                
+
                 result = self.reader.decode_label(tmp, raw)
 
                 plt.imshow(result)
@@ -286,7 +301,13 @@ class Net(object):
                 print('Model Reload Successfully!')
 
             for i in range(cfg.EPOCHES):
+
                 loss_list = []
+                regular_loss_list = []
+
+                lr = tf.train.exponential_decay(
+                    learning_rate=self.learning_rate, global_step=i, decay_steps=20, decay_rate=0.9, staircase=False)
+
                 for batch in range(cfg.BATCHES):
 
                     value, _ = self.reader.generate(self.batch_size)
@@ -294,22 +315,29 @@ class Net(object):
                     images = value['images']
                     labels = value['labels']
 
-                    feed_dict = {self.x: images,
-                                 self.y0: labels[0],
-                                 self.y1: labels[1],
-                                 self.y2: labels[2],
-                                 self.y3: labels[3]}
+                    lr = sess.run(lr)
 
-                    _, loss, pred = sess.run(
-                        [self.train_step, self.loss, self.y_hat], feed_dict)
+                    feed_dict = {
+                        self.lr: lr,
+                        self.x: images,
+                        self.y0: labels[0],
+                        self.y1: labels[1],
+                        self.y2: labels[2],
+                        self.y3: labels[3]}
+
+                    _, loss, regular_loss = sess.run(
+                        [self.train_step, self.loss, self.regular_loss], feed_dict)
 
                     loss_list.append(loss)
+                    regular_loss_list.append(regular_loss)
 
                     # print('batch:{} loss:{}'.format(batch, loss), end='\r')
 
                 loss_values = np.array(loss_list)
-
                 loss_values = np.mean(loss_values)
+
+                regular_loss_values = np.array(regular_loss_list)
+                regular_loss_values = np.mean(regular_loss_values)
 
                 with open('./result.txt', 'a') as f:
                     f.write(str(loss_values)+'\n')
@@ -317,14 +345,14 @@ class Net(object):
                 self.saver.save(sess, os.path.join(
                     cfg.MODEL_PATH, 'model.ckpt'))
 
-                print('epoch:{} loss:{}'.format(
-                    self.reader.epoch, loss_values))
+                print('epoch:{} loss:{} regular_loss:{}'.format(
+                    self.reader.epoch, loss_values, regular_loss_values))
 
 
 if __name__ == "__main__":
 
     net = Net(is_training=True)
 
-    net.run_test(30)
+    net.run_test(16)
 
     net.train_net()
