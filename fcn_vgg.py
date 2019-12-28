@@ -40,7 +40,7 @@ class Net(object):
 
         self.reader = Reader(is_training=is_training)
 
-        self.wd = 5e-4
+        self.wd = cfg.WEIGHT_DECAY
 
         self.x = tf.placeholder(
             tf.float32, [None, self.target_size, self.target_size, 3])
@@ -90,10 +90,10 @@ class Net(object):
             losses, self.loss_weights
         )
 
-        regularization_losses = tf.get_collection(
+        regular_loss = tf.get_collection(
             tf.GraphKeys.REGULARIZATION_LOSSES)
 
-        regular_loss = tf.add_n(regularization_losses)
+        regular_loss = tf.add_n(regular_loss)
 
         return losses, regular_loss
 
@@ -113,73 +113,77 @@ class Net(object):
 
         with tf.variable_scope(scope, 'ssd_512_vgg', [inputs], reuse=None):
 
-            # Block 1
-            net = slim.repeat(inputs, 2, slim.conv2d,
-                              64, [3, 3], scope='conv1', trainable=self.train_able)
-            net = slim.max_pool2d(net, [2, 2], scope='pool1', padding='SAME')
+            with slim.arg_scope([slim.conv2d],
+                                activation_fn=tf.nn.relu,
+                                weights_regularizer=slim.l2_regularizer(self.weight_decay)):
 
-            # Block 2
-            net = slim.repeat(net, 2, slim.conv2d,
-                              128, [3, 3], scope='conv2', trainable=self.train_able)
-            net = slim.max_pool2d(net, [2, 2], scope='pool2', padding='SAME')
-            pool2 = net
+                # Block 1
+                net = slim.repeat(inputs, 2, slim.conv2d,
+                                64, [3, 3], scope='conv1', trainable=self.train_able)
+                net = slim.max_pool2d(net, [2, 2], scope='pool1', padding='SAME')
 
-            # Block 3
-            net = slim.repeat(net, 3, slim.conv2d,
-                              256, [3, 3], scope='conv3', trainable=self.train_able)
-            net = slim.max_pool2d(net, [2, 2], scope='pool3', padding='SAME')
-            pool3 = net
+                # Block 2
+                net = slim.repeat(net, 2, slim.conv2d,
+                                128, [3, 3], scope='conv2', trainable=self.train_able)
+                net = slim.max_pool2d(net, [2, 2], scope='pool2', padding='SAME')
+                pool2 = net
 
-            # Block 4
-            net = slim.repeat(net, 3, slim.conv2d,
-                              512, [3, 3], scope='conv4', trainable=self.train_able)
+                # Block 3
+                net = slim.repeat(net, 3, slim.conv2d,
+                                256, [3, 3], scope='conv3', trainable=self.train_able)
+                net = slim.max_pool2d(net, [2, 2], scope='pool3', padding='SAME')
+                pool3 = net
 
-            net = slim.max_pool2d(net, [2, 2], scope='pool4', padding='SAME')
-            pool4 = net
+                # Block 4
+                net = slim.repeat(net, 3, slim.conv2d,
+                                512, [3, 3], scope='conv4', trainable=self.train_able)
 
-            # Block 5
-            net = slim.repeat(net, 3, slim.conv2d,
-                              512, [3, 3], scope='conv5', trainable=self.train_able)
+                net = slim.max_pool2d(net, [2, 2], scope='pool4', padding='SAME')
+                pool4 = net
 
-            # Block 6
-            net = slim.conv2d(net, 1024, [3, 3],
-                              2, scope='conv6', trainable=self.train_able)
+                # Block 5
+                net = slim.repeat(net, 3, slim.conv2d,
+                                512, [3, 3], scope='conv5', trainable=self.train_able)
 
-            # Block 7
-            net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
+                # Block 6
+                net = slim.conv2d(net, 1024, [3, 3],
+                                2, scope='conv6', trainable=self.train_able)
 
-            # up_pool 1
-            net = self._unpool_layer(net,
-                                     shape=tf.shape(pool4),
-                                     num_classes=num_classes,
-                                     name='up_pool1',
-                                     ksize=4, stride=2)
-            score_pool1 = slim.conv2d(
-                pool4, num_classes, [1, 1], 1, scope='score_pool1')
-            net = tf.add(net, score_pool1)
-            up_pool1 = tf.nn.softmax(net, axis=-1)
+                # Block 7
+                net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
 
-            # up_pool 2
-            net = self._unpool_layer(net,
-                                     shape=tf.shape(pool3),
-                                     num_classes=num_classes,
-                                     name='up_pool2',
-                                     ksize=4, stride=2)
-            score_pool2 = slim.conv2d(
-                pool3, num_classes, [1, 1], 1, scope='score_pool2')
-            net = tf.add(net, score_pool2)
-            up_pool2 = tf.nn.softmax(net, axis=-1)
+                # up_pool 1
+                net = self._unpool_layer(net,
+                                        shape=tf.shape(pool4),
+                                        num_classes=num_classes,
+                                        name='up_pool1',
+                                        ksize=4, stride=2)
+                score_pool1 = slim.conv2d(
+                    pool4, num_classes, [1, 1], 1, scope='score_pool1')
+                net = tf.add(net, score_pool1)
+                up_pool1 = tf.nn.softmax(net, axis=-1)
 
-            # up_pool 3
-            net = self._unpool_layer(net,
-                                     shape=tf.shape(pool2),
-                                     num_classes=num_classes,
-                                     name='up_pool3',
-                                     ksize=4, stride=2)
-            score_pool3 = slim.conv2d(
-                pool2, num_classes, [1, 1], 1, scope='score_pool3')
-            net = tf.add(net, score_pool3)
-            up_pool3 = tf.nn.softmax(net, axis=-1)
+                # up_pool 2
+                net = self._unpool_layer(net,
+                                        shape=tf.shape(pool3),
+                                        num_classes=num_classes,
+                                        name='up_pool2',
+                                        ksize=4, stride=2)
+                score_pool2 = slim.conv2d(
+                    pool3, num_classes, [1, 1], 1, scope='score_pool2')
+                net = tf.add(net, score_pool2)
+                up_pool2 = tf.nn.softmax(net, axis=-1)
+
+                # up_pool 3
+                net = self._unpool_layer(net,
+                                        shape=tf.shape(pool2),
+                                        num_classes=num_classes,
+                                        name='up_pool3',
+                                        ksize=4, stride=2)
+                score_pool3 = slim.conv2d(
+                    pool2, num_classes, [1, 1], 1, scope='score_pool3')
+                net = tf.add(net, score_pool3)
+                up_pool3 = tf.nn.softmax(net, axis=-1)
 
             # up_pool 4
             logits = self._unpool_layer(net,
