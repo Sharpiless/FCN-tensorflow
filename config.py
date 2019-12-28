@@ -9,6 +9,8 @@ LAYERS_SHAPE = [(32, 32),
                 (64, 64),
                 (128, 128)]
 
+WEIGHT_DECAY = 5e-4
+
 DATA_PATH = '../VOC2012'
 
 EPOCHES = 500
@@ -17,9 +19,9 @@ TRAIN_ABLE = True
 
 NEG_WEIGHTS = 0.2
 
-LOSS_WEIGHTS = (0.1, 0.2, 0.3, 0.6)
+LOSS_WEIGHTS = (0., 0.1, 0.2, 0.7)
 
-LEARNING_RATE = 2e-6
+LEARNING_RATE = 2e-5
 
 ImageSets_PATH = os.path.join(DATA_PATH, 'ImageSets')
 
