@@ -22,6 +22,8 @@ class Net(object):
 
         self.train_able = cfg.TRAIN_ABLE
 
+        self.weight_decay = cfg.WEIGHT_DECAY
+
         self.learning_rate = cfg.LEARNING_RATE
 
         self.num_classes = len(cfg.CLASSES)
@@ -122,6 +124,8 @@ class Net(object):
                                 64, [3, 3], scope='conv1', trainable=self.train_able)
                 net = slim.max_pool2d(net, [2, 2], scope='pool1', padding='SAME')
 
+                net = tf.layers.batch_normalization(net, trainable=self.is_training)
+
                 # Block 2
                 net = slim.repeat(net, 2, slim.conv2d,
                                 128, [3, 3], scope='conv2', trainable=self.train_able)
@@ -145,9 +149,13 @@ class Net(object):
                 net = slim.repeat(net, 3, slim.conv2d,
                                 512, [3, 3], scope='conv5', trainable=self.train_able)
 
+                net = tf.layers.batch_normalization(net, trainable=self.is_training)
+
                 # Block 6
                 net = slim.conv2d(net, 1024, [3, 3],
                                 2, scope='conv6', trainable=self.train_able)
+
+                net = tf.layers.batch_normalization(net, trainable=self.is_training)
 
                 # Block 7
                 net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
