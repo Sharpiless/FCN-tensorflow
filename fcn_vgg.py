@@ -8,6 +8,7 @@ from random_crop import random_crop
 import matplotlib.pyplot as plt
 from tensorflow.contrib.layers import xavier_initializer
 import cv2
+from tensorflow.python import pywrap_tensorflow
 
 slim = tf.contrib.slim
 
@@ -60,9 +61,32 @@ class Net(object):
 
         self.y_hat = self.network(self.x)
 
+        self.logits = self.y_hat[-1]
+
         self.loss, self.regular_loss = self.sample_loss(self.y, self.y_hat)
 
         self.saver = tf.train.Saver()
+
+    def get_variables_to_restore(self, pred_trained_ckpt):
+    
+        net_vars = tf.trainable_variables()
+
+        mobilenet_reader = pywrap_tensorflow.NewCheckpointReader(
+            pred_trained_ckpt)
+
+        var_to_shape_map = mobilenet_reader.get_variable_to_shape_map()
+        ckpt_vars = [v for v in var_to_shape_map]
+
+        var_to_restore = []
+
+        for var in net_vars:
+            name = var.name.split(':')[0]
+            if name in ckpt_vars:
+                if var_to_shape_map[name] == var.shape:
+                    print(var.name.split(':')[0])
+                    var_to_restore.append(var)
+
+        return var_to_restore
 
     def sample_loss(self, labels, logits):
 
@@ -124,7 +148,7 @@ class Net(object):
                                 64, [3, 3], scope='conv1', trainable=self.train_able)
                 net = slim.max_pool2d(net, [2, 2], scope='pool1', padding='SAME')
 
-                net = tf.layers.batch_normalization(net, trainable=self.is_training)
+                net = tf.layers.batch_normalization(net, trainable=self.is_training, name='BN_block1')
 
                 # Block 2
                 net = slim.repeat(net, 2, slim.conv2d,
@@ -149,13 +173,13 @@ class Net(object):
                 net = slim.repeat(net, 3, slim.conv2d,
                                 512, [3, 3], scope='conv5', trainable=self.train_able)
 
-                net = tf.layers.batch_normalization(net, trainable=self.is_training)
+                net = tf.layers.batch_normalization(net, trainable=self.is_training, name='BN_block5')
 
                 # Block 6
                 net = slim.conv2d(net, 1024, [3, 3],
                                 2, scope='conv6', trainable=self.train_able)
 
-                net = tf.layers.batch_normalization(net, trainable=self.is_training)
+                net = tf.layers.batch_normalization(net, trainable=self.is_training, name='BN_block6')
 
                 # Block 7
                 net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
@@ -258,7 +282,9 @@ class Net(object):
 
             if ckpt and ckpt.model_checkpoint_path:
                 # 如果保存过模型，则在保存的模型的基础上继续训练
-                self.saver.restore(sess, ckpt.model_checkpoint_path)
+                var_to_restore = self.get_variables_to_restore(ckpt.model_checkpoint_path)
+                saver = tf.train.Saver(var_to_restore)
+                saver.restore(sess, ckpt.model_checkpoint_path)
                 print('Model Reload Successfully!')
 
             for _ in range(num):
@@ -280,11 +306,11 @@ class Net(object):
                 plt.imshow(tmp)
                 plt.show()
 
-                raw = np.hstack([raw, raw])
+                # raw = np.hstack([raw, raw])
 
                 result = self.reader.decode_label(tmp, raw)
 
-                plt.imshow(result)
+                plt.imshow(np.hstack([result, raw]))
                 plt.show()
 
     def train_net(self):
@@ -307,8 +333,11 @@ class Net(object):
 
             if ckpt and ckpt.model_checkpoint_path:
                 # 如果保存过模型，则在保存的模型的基础上继续训练
-                self.saver.restore(sess, ckpt.model_checkpoint_path)
+                var_to_restore = self.get_variables_to_restore(ckpt.model_checkpoint_path)
+                saver = tf.train.Saver(var_to_restore)
+                saver.restore(sess, ckpt.model_checkpoint_path)
                 print('Model Reload Successfully!')
+
 
             for i in range(cfg.EPOCHES):
                 loss_list = []
@@ -354,6 +383,6 @@ if __name__ == "__main__":
 
     net = Net(is_training=True)
 
-    net.run_test(16)
+    net.run_test(4)
 
-    net.train_net()
+    # net.train_net()

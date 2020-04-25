@@ -7,10 +7,9 @@ with open('result.txt') as f:
 losses = [eval(v) for v in losses]
 x = np.arange(len(losses))
 
-f = np.polyfit(x, losses, 32)
+f = np.polyfit(x, losses, len(losses)//10)
 f = np.poly1d(f)
 
-print(f)
 smooth_losses = f(x)
 
 plt.plot(losses, label='losses')

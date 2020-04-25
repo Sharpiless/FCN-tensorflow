@@ -276,7 +276,7 @@ if __name__ == "__main__":
         label = value['labels']
         label_image = np.squeeze(label[-1]).astype(np.float)
 
-        result = reader.decode_label(label_image, raw)
+        result = reader.decode_label(label_image, np.zeros(shape=raw.shape))
 
         plt.imshow(result)
         plt.show()
